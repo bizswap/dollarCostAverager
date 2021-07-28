@@ -32,21 +32,23 @@ contract DCA {
         uint256 _amountPerTx
     ) public {
         //MUST APPROVE CONTRACT TO OPEN CHANNEL
-        TransferHelper.safeTransferFrom(DAI, msg.sender, address(this), _deposit);
         channels[msg.sender].balance += _deposit;
         channels[msg.sender].frequency = _frequency;
         channels[msg.sender].amountPerTx = _amountPerTx;
+        TransferHelper.safeTransferFrom(DAI, msg.sender, address(this), _deposit);
     }
     
     function closeChannel() public {
-        TransferHelper.safeTransfer(DAI, msg.sender, channels[msg.sender].balance);
         channels[msg.sender].balance = 0;
         channels[msg.sender].frequency = 0;
         channels[msg.sender].lastPurchase = 0;
+        TransferHelper.safeTransfer(DAI, msg.sender, channels[msg.sender].balance);
     }
 
     function swapExactInputSingle(address _user) external returns (uint256 amountOut) {
         uint256 amountIn = channels[_user].amountPerTx;
+        channels[_user].balances -= amountIn;
+        channels[_user].lastPurchase = block.timestamp;
         TransferHelper.safeApprove(DAI, address(swapRouter), amountIn);
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
