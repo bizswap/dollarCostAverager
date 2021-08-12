@@ -19,6 +19,7 @@ import {
   useGasPrice,
   useOnBlock,
   useUserSigner,
+  usePoller,
 } from "./hooks";
 // import Hints from "./Hints";
 import { ExampleUI } from "./views";
@@ -411,16 +412,12 @@ function App(props) {
           <Route path="/exampleui">
             <ExampleUI
               address={address}
-              userSigner={userSigner}
-              mainnetProvider={mainnetProvider}
-              localProvider={localProvider}
-              yourLocalBalance={yourLocalBalance}
-              price={price}
               tx={tx}
               writeContracts={writeContracts}
               readContracts={readContracts}
-              mainnetContracts={mainnetContracts}
               writeExternalContracts={writeExternalContracts}
+              usePoller={usePoller}
+              useContractReader={useContractReader}
             />
           </Route>
         </Switch>
