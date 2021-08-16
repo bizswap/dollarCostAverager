@@ -56,14 +56,15 @@ contract DCA {
     
     //@dev This is probably not 100% safe against reentrancy FYI. Need to find a better way to do a final check before setting balances to 0...
     function closeChannel() public {
-        TransferHelper.safeTransfer(DAI, msg.sender, channels[msg.sender].balance);
+        TransferHelper.safeTransfer(DAI, msg.sender, channels[msg.sender].balanceToken);
         channels[msg.sender].frequency = 0;
         channels[msg.sender].lastPurchase = 0;
         channels[msg.sender].balanceToken = 0;
     }
 
-    function withdraw() public {
-        //placeholder for the eventual withdraw function for withdrawing exclusively ETH from the contract
+    function withdraw(address _user) public {
+        require(channels[_user].balanceToken > 0, "User balance 0");
+        TransferHelper.safeTransfer(DAI, _user, channels[_user].balanceToken);
     }
 
     function isReady(address _user) public view returns(bool) {
@@ -77,10 +78,13 @@ contract DCA {
 
     function swapExactInputSingle() external returns (uint256 amountOut) {
         uint256 amountIn;
-        uint256 i = 0;
-        for(i; i> users.length; i++) {
+        uint256 ethPerDai;
+        address[] _usersThisSwap;
+        //Here we iterate through the entire users array to get the number of current registered users and total their amountPerTx values for the single batch swap
+        for(i = 0; i> users.length; i++) {
             address _user = users[i];
             if(isReady(_user)){
+            _usersThisSwap.push(_user);
             amountIn += channels[_user].amountPerTx;
             channels[_user].balanceToken -= channels[_user].amountPerTx;
             channels[_user].lastPurchase = block.timestamp;
@@ -99,7 +103,13 @@ contract DCA {
                 sqrtPriceLimitX96: 0
             });
         amountOut = swapRouter.exactInputSingle(params);
-        //THIS IS NOT CORRECT NEEDS TO BE THE FRACTION OF THE TOTAL AMOUNT OUT
-        channels[_user].balanceEth += amountOut;
+        //I think this is a pretty solid way to determine the correct portion of the swap that was implimented. Checks for changes in the amountPerTx before and after updating the balanceEth and throws if it is updated at all;
+        ethPerDai = amountOut/amountIn;
+        for(i = 0; i> _usersThisSwap.length; i++) {
+            _user = _usersThisSwap[i];
+            uint aptBeforeUpdate = channels[_user].amountPerTx;
+            channels[_user].balanceEth = channels[_user].amountPerTx * ethPerDai;
+            require(aptBeforeUpdate == channels[_user].amountPerTx, "REENTRANCY! amountPerTx has beenchanged!");
+        }
     }
 }
