@@ -35,7 +35,7 @@ export default function ExampleUI({
   }, 120000);
 
   async function openChannel() {
-    await tx(writeExternalContracts.DAI.approve("0xE345912A92c721c2Cbc6C5D906b944a974de0179", deposit));
+    await tx(writeExternalContracts.DAI.approve("0x2368f44ae6583163635fdaE39a2aD28ac072997a", deposit));
     await tx(writeContracts.DCA.openChannel(deposit, frequency, amountPerTx));
   }
 

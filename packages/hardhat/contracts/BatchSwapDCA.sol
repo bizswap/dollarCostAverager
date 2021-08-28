@@ -5,7 +5,7 @@ pragma abicoder v2;
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 
-contract DCA {
+contract BatchDCA {
 
     /*
     This is a draft of the "Batch swap" version of the DCA. Where swaps combined for simplicity and gas. 
@@ -35,11 +35,16 @@ contract DCA {
 
     function addUser(address _user) public returns(bool){
         uint i = 0;
+        if (users.length == 0) {
+            users.push(_user);
+            return true;
+        } else {
         for(i; i<= users.length-1; i++) {
             require(users[i] != _user, "USER ALREADY ADDED");
         }
         users.push(_user);
         return true;
+        }           
     }
 
     function openChannel(
@@ -48,7 +53,7 @@ contract DCA {
         uint256 _amountPerTx
     ) public {
         //MUST APPROVE CONTRACT TO OPEN CHANNEL
-        channels[msg.sender].balance += _deposit;
+        channels[msg.sender].balanceToken += _deposit;
         channels[msg.sender].frequency = _frequency;
         channels[msg.sender].amountPerTx = _amountPerTx;
         TransferHelper.safeTransferFrom(DAI, msg.sender, address(this), _deposit);
@@ -61,7 +66,6 @@ contract DCA {
         channels[msg.sender].lastPurchase = 0;
         channels[msg.sender].balanceToken = 0;
     }
-
     function withdraw(address _user) public {
         require(channels[_user].balanceToken > 0, "User balance 0");
         TransferHelper.safeTransfer(DAI, _user, channels[_user].balanceToken);
@@ -79,12 +83,14 @@ contract DCA {
     function swapExactInputSingle() external returns (uint256 amountOut) {
         uint256 amountIn;
         uint256 ethPerDai;
-        address[] _usersThisSwap;
+        uint256 i;
+        address[1000] memory _usersThisSwap;
+        address _user;
         //Here we iterate through the entire users array to get the number of current registered users and total their amountPerTx values for the single batch swap
         for(i = 0; i> users.length; i++) {
             address _user = users[i];
             if(isReady(_user)){
-            _usersThisSwap.push(_user);
+            _usersThisSwap[i] = _user;
             amountIn += channels[_user].amountPerTx;
             channels[_user].balanceToken -= channels[_user].amountPerTx;
             channels[_user].lastPurchase = block.timestamp;
@@ -109,7 +115,37 @@ contract DCA {
             _user = _usersThisSwap[i];
             uint aptBeforeUpdate = channels[_user].amountPerTx;
             channels[_user].balanceEth = channels[_user].amountPerTx * ethPerDai;
-            require(aptBeforeUpdate == channels[_user].amountPerTx, "REENTRANCY! amountPerTx has beenchanged!");
+            require(aptBeforeUpdate == channels[_user].amountPerTx, "REENTRANCY! amountPerTx has been changed!");
         }
+    }
+
+    // The main swap function isnt working just quite right, I am debating whether this approach even makes sense...
+    function swapTest() external returns (uint256 amountOut) {
+        uint256 amountIn;
+        uint256 ethPerDai;
+        uint256 i;
+        address[1000] memory _usersThisSwap;
+        address _user;
+        //Here we iterate through the entire users array to get the number of current registered users and total their amountPerTx values for the single batch swap
+        for(i = 0; i> users.length; i++) {
+            address _user = users[i];
+            if(isReady(_user)){
+            _usersThisSwap[i] = _user;
+            amountIn += channels[_user].amountPerTx;
+            }
+        }
+        TransferHelper.safeApprove(DAI, address(swapRouter), amountIn);
+        ISwapRouter.ExactInputSingleParams memory params =
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: DAI,
+                tokenOut: WETH9,
+                fee: poolFee,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+        amountOut = swapRouter.exactInputSingle(params);
     }
 }

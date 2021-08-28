@@ -13,6 +13,7 @@ contract DCA {
     address public constant WETH9 = 0xc778417E063141139Fce010982780140Aa0cD5Ab;
     uint24 public constant poolFee = 3000;
 
+    address[] public users;
     mapping(address => Channel) public channels;
     struct Channel {
         uint256 balance;
@@ -23,6 +24,20 @@ contract DCA {
 
     constructor(ISwapRouter _swapRouter) {
         swapRouter = _swapRouter;
+    }
+
+    function addUser(address _user) public returns(bool){
+        uint i = 0;
+        if (users.length == 0) {
+            users.push(_user);
+            return true;
+        } else {
+        for(i; i<= users.length-1; i++) {
+            require(users[i] != _user, "USER ALREADY ADDED");
+        }
+        users.push(_user);
+        return true;
+        }           
     }
 
     function openChannel(
@@ -46,8 +61,8 @@ contract DCA {
     }
 
     function isReady(address _user) public view returns(bool) {
-        require(channels[_user].balanceToken != 0);
-        if(channels[_user].balanceToken == 0) {
+        require(channels[_user].balance!= 0);
+        if(channels[_user].balance == 0) {
             return false;
         } else {
         return block.timestamp >= channels[_user].lastPurchase + channels[_user].frequency; 
@@ -55,6 +70,7 @@ contract DCA {
     }
 
     function swapExactInputSingle(address _user) external returns (uint256 amountOut) {
+        require(isReady(_user), "User isn't ready");
         uint256 amountIn = channels[_user].amountPerTx;
         if(amountIn > channels[_user].balance){
             amountIn = channels[_user].balance;
